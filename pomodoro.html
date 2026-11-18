@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NVDA 포모도로</title>
+<style>
+  :root{
+    --bg:#fff7e8; --card:#ffffff; --ink:#3b2a1a; --muted:#8a755f;
+    --focus:#f4a63a; --short:#6cc08b; --long:#5aa6e0; --ring-bg:#f1e4cf;
+    --mane:#c9772a; --face:#f6b84b; --nose:#5a3a22;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1f1a14; --card:#2a231b; --ink:#f5e9d8; --muted:#b9a68e; --ring-bg:#3a3026;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    display:flex;align-items:center;justify-content:center;padding:16px}
+  .app{width:100%;max-width:420px;background:var(--card);border-radius:28px;padding:24px 20px 28px;
+    box-shadow:0 10px 40px rgba(120,80,30,.15);text-align:center}
+  .tabs{display:flex;gap:6px;background:var(--ring-bg);border-radius:999px;padding:4px;margin-bottom:18px}
+  .tabs button{flex:1;border:0;background:transparent;color:var(--muted);padding:9px 0;border-radius:999px;
+    font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+  .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  .stage{position:relative;width:260px;height:260px;margin:0 auto}
+  .stage svg.ring{position:absolute;inset:0;transform:rotate(-90deg)}
+  .ring circle{fill:none;stroke-width:12}
+  .ring .bg{stroke:var(--ring-bg)}
+  .ring .fg{stroke:var(--accent,var(--focus));stroke-linecap:round;transition:stroke-dashoffset .3s linear,stroke .3s}
+  .char{position:absolute;inset:34px;display:flex;align-items:center;justify-content:center}
+  .char svg{width:100%;height:100%}
+  .char .photo{width:100%;height:100%;border-radius:50%;object-fit:cover;background:var(--ring-bg)}
+  .char .badge{position:absolute;font-size:34px;line-height:1;pointer-events:none}
+  .char .b-tr{top:-4px;right:-4px}
+  .char .b-tl{top:-4px;left:-4px}
+  .imgbar{display:flex;gap:8px;justify-content:center;margin-top:10px}
+  .imgbar button,.imgbar label{border:1px solid var(--ring-bg);background:var(--bg);color:var(--ink);border-radius:10px;
+    padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
+  .char.bounce{animation:bounce .9s ease-in-out infinite}
+  .char.breathe{animation:breathe 3s ease-in-out infinite}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+  .time{font-size:56px;font-weight:800;letter-spacing:1px;margin:14px 0 2px;font-variant-numeric:tabular-nums}
+  .msg{color:var(--muted);font-size:15px;min-height:22px}
+  .ctrl{display:flex;gap:10px;justify-content:center;margin-top:18px}
+  .ctrl button{border:0;border-radius:16px;padding:14px 22px;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+  .main{background:var(--accent,var(--focus));color:#fff;min-width:130px}
+  .sub{background:var(--ring-bg);color:var(--ink)}
+  .tomatoes{margin-top:18px;font-size:20px;min-height:26px;letter-spacing:2px}
+  details{margin-top:14px;text-align:left;font-size:14px;color:var(--muted)}
+  summary{cursor:pointer;text-align:center}
+  .set{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+  .set label{display:flex;flex-direction:column;gap:4px;font-size:12px}
+  .set input{width:100%;padding:8px;border-radius:10px;border:1px solid var(--ring-bg);background:var(--bg);color:var(--ink);font:inherit}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="tabs">
+    <button data-mode="focus" class="on">집중</button>
+    <button data-mode="short">짧은 휴식</button>
+    <button data-mode="long">긴 휴식</button>
+  </div>
+
+  <div class="stage">
+    <svg class="ring" viewBox="0 0 260 260">
+      <circle class="bg" cx="130" cy="130" r="120"/>
+      <circle class="fg" id="ring" cx="130" cy="130" r="120"/>
+    </svg>
+    <div class="char" id="char"></div>
+  </div>
+
+  <div class="time" id="time">25:00</div>
+  <div class="msg" id="msg">준비됐어? 시작 버튼을 눌러!</div>
+
+  <div class="ctrl">
+    <button class="main" id="start">시작</button>
+    <button class="sub" id="reset">리셋</button>
+    <button class="sub" id="skip">건너뛰기</button>
+  </div>
+
+  <div class="tomatoes" id="tomatoes"></div>
+
+  <details>
+    <summary>⚙️ 시간 설정 (분)</summary>
+    <div class="set">
+      <label>집중<input type="number" id="setFocus" min="1" max="120" value="25"></label>
+      <label>짧은 휴식<input type="number" id="setShort" min="1" max="60" value="5"></label>
+      <label>긴 휴식<input type="number" id="setLong" min="1" max="60" value="15"></label>
+    </div>
+  </details>
+  <div class="imgbar">
+    <label>🖼️ 캐릭터 이미지 바꾸기<input type="file" id="imgFile" accept="image/*" hidden></label>
+    <button id="imgReset">기본 이미지로</button>
+  </div>
+</div>
+
+<script>
+// ---- Character (original lion "사자 뭉치") ----
+function lion(mood){
+  const eyes = {
+    idle:  '<circle cx="78" cy="98" r="6" fill="var(--nose)"/><circle cx="122" cy="98" r="6" fill="var(--nose)"/>',
+    focus: '<path d="M70 98h16M114 98h16" stroke="var(--nose)" stroke-width="5" stroke-linecap="round"/>' +
+           '<path d="M66 84l20 6M134 84l-20 6" stroke="var(--nose)" stroke-width="5" stroke-linecap="round"/>',
+    rest:  '<path d="M70 98q8 7 16 0M114 98q8 7 16 0" stroke="var(--nose)" stroke-width="4" fill="none" stroke-linecap="round"/>',
+    happy: '<path d="M70 100q8 -10 16 0M114 100q8 -10 16 0" stroke="var(--nose)" stroke-width="5" fill="none" stroke-linecap="round"/>'
+  }[mood];
+  const mouth = {
+    idle:  '<path d="M92 128q8 7 16 0" stroke="var(--nose)" stroke-width="4" fill="none" stroke-linecap="round"/>',
+    focus: '<path d="M93 130h14" stroke="var(--nose)" stroke-width="4" stroke-linecap="round"/>',
+    rest:  '<ellipse cx="100" cy="131" rx="5" ry="6" fill="var(--nose)"/>',
+    happy: '<path d="M88 126q12 16 24 0z" fill="#c2452f"/>'
+  }[mood];
+  const zz = mood==='rest' ? '<text x="150" y="50" font-size="22" font-weight="800" fill="var(--muted)">z z</text>' : '';
+  const blush = mood==='happy'||mood==='idle' ? '<circle cx="64" cy="118" r="9" fill="#f28b6b" opacity=".45"/><circle cx="136" cy="118" r="9" fill="#f28b6b" opacity=".45"/>' : '';
+  const sweat = mood==='focus' ? '<path d="M150 70q6 10 0 14q-6 -4 0 -14z" fill="#7cc4f0"/>' : '';
+  // mane: ring of petals
+  let mane='';
+  for(let i=0;i<14;i++){const a=i/14*Math.PI*2;const x=100+Math.cos(a)*68,y=108+Math.sin(a)*68;
+    mane+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="var(--mane)"/>`;}
+  return `<svg viewBox="0 0 200 200">
+    ${mane}
+    <circle cx="58" cy="58" r="15" fill="var(--face)"/><circle cx="142" cy="58" r="15" fill="var(--face)"/>
+    <circle cx="58" cy="58" r="7" fill="#e79a3a"/><circle cx="142" cy="58" r="7" fill="#e79a3a"/>
+    <circle cx="100" cy="108" r="62" fill="var(--face)"/>
+    <ellipse cx="100" cy="122" rx="26" ry="18" fill="#fde3b0"/>
+    ${blush}${eyes}
+    <path d="M92 112h16l-8 8z" fill="var(--nose)" stroke="var(--nose)" stroke-width="3" stroke-linejoin="round"/>
+    ${mouth}${zz}${sweat}
+  </svg>`;
+}
+
+// ---- Timer ----
+const MODES = {
+  focus:{label:'집중', color:'var(--focus)', msgRun:'주가는 떨어져도 집중력은 올라가요 🔥', mood:'focus'},
+  short:{label:'짧은 휴식', color:'var(--short)', msgRun:'잠깐 쉬자… 쿨쿨', mood:'rest'},
+  long: {label:'긴 휴식', color:'var(--long)', msgRun:'푹 쉬어! 차트는 보지 말고 👏', mood:'rest'}
+};
+const $ = id => document.getElementById(id);
+const ring = $('ring'), C = 2*Math.PI*120;
+ring.style.strokeDasharray = C;
+
+let mode='focus', total=0, left=0, timer=null, endAt=0, done=0;
+
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem('lionPomo')||'{}');
+    if(s.focus) $('setFocus').value=s.focus;
+    if(s.short) $('setShort').value=s.short;
+    if(s.long)  $('setLong').value=s.long;
+    if(s.date===new Date().toDateString()) done=s.done||0;
+  }catch(e){}
+}
+function save(){
+  try{
+    localStorage.setItem('lionPomo', JSON.stringify({
+      focus:+$('setFocus').value, short:+$('setShort').value, long:+$('setLong').value,
+      done, date:new Date().toDateString()}));
+  }catch(e){}
+}
+function minutes(m){ return Math.max(1, +$({focus:'setFocus',short:'setShort',long:'setLong'}[m]).value||1); }
+
+function setMode(m){
+  stop(); mode=m; total=left=minutes(m)*60;
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  document.documentElement.style.setProperty('--accent', MODES[m].color);
+  setChar('idle'); $('msg').textContent = m==='focus' ? '준비됐어? 시작 버튼을 눌러!' : '쉬는 시간이야. 시작을 눌러!';
+  render();
+}
+// ---- Custom character image ----
+// 1) 업로드한 이미지(브라우저에 저장)  2) 기본: 엔비디아 주가 하락 그래프
+let customImg = null;
+try{ customImg = localStorage.getItem('lionPomoImg'); }catch(e){}
+
+// NVDA 일별 종가 2026-08-17 ~ 2026-11-17 (출처: stockanalysis.com)
+const NVDA = [225.01,219.74,217.56,216.85,214.72,208.48,213.05,209.66,227.98,217.55,220.78,217.44,224.41,228.45,230.36,
+  225.73,223.67,218.36,218.29,210.96,212.17,213.9,219.34,222.27,227.38,228.87,225.51,224.58,225.07,228.86,227.21,228.38,
+  230.86,233.95,238.9,239.24,237.47,230.48,229.28,226.32,228.52,221.3,217.23,214.13,217.09,216.47,221.97,212.21,210.96,
+  216,217.94,215.38,213.66,204.64,202.06,206.69,200.13,181.6,186.64,178.67,168.89,173.73,166.19,162.85,156.14,155.46];
+function chartSVG(){
+  const x0=28,x1=172,y0=78,y1=150, lo=150, hi=245;
+  const X=i=>x0+(x1-x0)*i/(NVDA.length-1), Y=v=>y1-(y1-y0)*(v-lo)/(hi-lo);
+  const pts=NVDA.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const pk=NVDA.indexOf(Math.max(...NVDA)), last=NVDA.length-1;
+  const pct=((NVDA[last]/NVDA[pk]-1)*100).toFixed(1);
+  return `<svg viewBox="0 0 200 200">
+    <defs><clipPath id="cc"><circle cx="100" cy="100" r="100"/></clipPath>
+      <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5484d" stop-opacity=".35"/><stop offset="1" stop-color="#e5484d" stop-opacity="0"/></linearGradient></defs>
+    <g clip-path="url(#cc)">
+      <rect width="200" height="200" fill="#16181d"/>
+      ${[0,1,2,3].map(k=>`<line x1="0" x2="200" y1="${y0+k*24}" y2="${y0+k*24}" stroke="#2a2e36" stroke-width="1"/>`).join('')}
+      <polygon points="${x0},${y1+40} ${pts} ${x1},${y1+40}" fill="url(#ga)"/>
+      <polyline points="${pts}" fill="none" stroke="#e5484d" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${X(pk)}" cy="${Y(NVDA[pk])}" r="4" fill="#fff"/>
+      <text x="${X(pk)}" y="${Y(NVDA[pk])-8}" font-size="10" fill="#cfd3da" text-anchor="middle">$${NVDA[pk]}</text>
+      <circle cx="${X(last)}" cy="${Y(NVDA[last])}" r="5" fill="#e5484d" stroke="#fff" stroke-width="2"/>
+      <text x="${X(last)-4}" y="${Y(NVDA[last])+18}" font-size="10" fill="#cfd3da" text-anchor="end">$${NVDA[last]}</text>
+      <text x="100" y="40" font-size="15" font-weight="800" fill="#76b900" text-anchor="middle">NVDA</text>
+      <text x="100" y="66" font-size="24" font-weight="900" fill="#e5484d" text-anchor="middle">📉 ${pct}%</text>
+      <text x="100" y="186" font-size="9" fill="#8b919c" text-anchor="middle">10/6 고점 → 11/17 종가</text>
+    </g></svg>`;
+}
+
+const BADGES = {
+  idle:'', focus:'<span class="badge b-tr">💦</span><span class="badge b-tl">🔥</span>',
+  rest:'<span class="badge b-tr">💤</span>', happy:'<span class="badge b-tr">🎉</span><span class="badge b-tl">🍅</span>'
+};
+let curMood='idle';
+function charHTML(mood){
+  if(!customImg) return chartSVG()+BADGES[mood];
+  return `<img class="photo" src="${customImg}" alt="캐릭터">${BADGES[mood]}`;
+}
+$('imgFile').onchange = e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const img=new Image(), url=URL.createObjectURL(f);
+  img.onload=()=>{
+    const s=Math.min(img.width,img.height), cv=document.createElement('canvas');
+    cv.width=cv.height=360;
+    cv.getContext('2d').drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,360,360);
+    customImg=cv.toDataURL('image/jpeg',.88); URL.revokeObjectURL(url);
+    try{ localStorage.setItem('lionPomoImg',customImg); }catch(e){}
+    setChar(curMood);
+  };
+  img.src=url;
+};
+$('imgReset').onclick=()=>{ customImg=null; try{ localStorage.removeItem('lionPomoImg'); }catch(e){} setChar(curMood); };
+
+function setChar(mood){
+  curMood=mood;
+  const c=$('char'); c.innerHTML=charHTML(mood);
+  c.className='char '+(mood==='focus'||mood==='happy'?'bounce':'breathe');
+}
+function render(){
+  const mm=String(Math.floor(left/60)).padStart(2,'0'), ss=String(left%60).padStart(2,'0');
+  $('time').textContent=`${mm}:${ss}`;
+  document.title = timer ? `${mm}:${ss} · ${MODES[mode].label}` : 'NVDA 포모도로';
+  ring.style.strokeDashoffset = C*(1-left/total);
+  $('tomatoes').textContent = done ? '🍅'.repeat(done) + `  ${done}개 완료` : '';
+}
+function start(){
+  if(timer) return pause();
+  endAt = Date.now()+left*1000;
+  timer=setInterval(tick,250);
+  $('start').textContent='일시정지';
+  setChar(MODES[mode].mood); $('msg').textContent=MODES[mode].msgRun;
+}
+function pause(){ stop(); $('msg').textContent='잠깐 멈췄어. 다시 시작할까?'; setChar('idle'); }
+function stop(){ clearInterval(timer); timer=null; $('start').textContent='시작'; render(); }
+function tick(){
+  left = Math.max(0, Math.round((endAt-Date.now())/1000));
+  render();
+  if(left===0) finish();
+}
+function finish(){
+  stop(); beep();
+  let next;
+  if(mode==='focus'){ done++; save(); next = done%4===0 ? 'long' : 'short'; }
+  else next='focus';
+  const text = mode==='focus' ? '해냈다! 🍅 이제 쉬자' : '휴식 끝! 다시 집중해볼까?';
+  notify(text);
+  setMode(next);
+  setChar('happy'); $('msg').textContent=text;
+}
+function beep(){
+  try{
+    const ac=new (window.AudioContext||window.webkitAudioContext)();
+    [0,0.25,0.5].forEach((t,i)=>{const o=ac.createOscillator(),g=ac.createGain();
+      o.frequency.value=[660,880,990][i]; o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(.2,ac.currentTime+t); g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+t+.22);
+      o.start(ac.currentTime+t); o.stop(ac.currentTime+t+.23);});
+  }catch(e){}
+}
+function notify(text){
+  try{ if('Notification' in window && Notification.permission==='granted') new Notification('사자 포모도로',{body:text}); }catch(e){}
+}
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$('start').onclick=()=>{ try{ if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }catch(e){} start(); };
+$('reset').onclick=()=>setMode(mode);
+$('skip').onclick=()=>{ left=0; finish(); };
+['setFocus','setShort','setLong'].forEach(id=>$(id).onchange=()=>{ save(); if(!timer) setMode(mode); });
+document.addEventListener('keydown',e=>{ if(e.code==='Space' && e.target.tagName!=='INPUT'){ e.preventDefault(); $('start').click(); }});
+
+load(); setMode('focus');
+</script>
+</body>
+</html>
